@@ -2,9 +2,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { api } from '../core/api';
-import { loadCategories } from '../config/loader';
-import type { Transaction, Account, CreditCard, Tag } from '../core/schemas';
-import { formatMoney } from '../utils/format';
+import type { Transaction, Tag } from '../core/schemas';
+import { formatMoney, buildCategoryMap } from '../utils/format';
 import { InvoiceOptionSchema } from '../utils/options';
 
 /**
@@ -18,23 +17,6 @@ function escapeCSV(value: string | number | null | undefined): string {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
-}
-
-/**
- * Build category map: id -> name
- */
-function buildCategoryMap(): Map<number, string> {
-  const categories = loadCategories();
-  const map = new Map<number, string>();
-
-  for (const [name, id] of Object.entries(categories.essencial)) {
-    map.set(id, name);
-  }
-  for (const [name, id] of Object.entries(categories.estilo_de_vida)) {
-    map.set(id, name);
-  }
-
-  return map;
 }
 
 /**

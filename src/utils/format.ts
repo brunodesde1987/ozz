@@ -1,3 +1,22 @@
+import { loadCategories } from '../config/loader';
+
+/**
+ * Build category map: id -> name
+ */
+export function buildCategoryMap(): Map<number, string> {
+  const categories = loadCategories();
+  const map = new Map<number, string>();
+
+  for (const [name, id] of Object.entries(categories.essencial)) {
+    map.set(id as number, name);
+  }
+  for (const [name, id] of Object.entries(categories.estilo_de_vida)) {
+    map.set(id as number, name);
+  }
+
+  return map;
+}
+
 /**
  * Format milliseconds to human readable duration
  * Uses Intl.DurationFormat if available, fallback to manual

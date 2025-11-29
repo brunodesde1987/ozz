@@ -17,6 +17,7 @@ export const InvoiceOptionSchema = z.string().transform((val, ctx) => {
 });
 
 // Month option: "YYYY-MM"
+// Exported for testing purposes
 export const MonthOptionSchema = z.string().regex(/^\d{4}-\d{2}$/, 'Must be YYYY-MM format');
 
 export type InvoiceOption = z.infer<typeof InvoiceOptionSchema>;

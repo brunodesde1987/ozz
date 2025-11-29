@@ -3,9 +3,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
 import { api } from '../core/api';
-import { loadCategories } from '../config/loader';
-import type { Transaction, Category } from '../core/schemas';
-import { formatMoney as formatMoneyUtil, truncate } from '../utils/format';
+import type { Transaction } from '../core/schemas';
+import { formatMoney as formatMoneyUtil, truncate, buildCategoryMap } from '../utils/format';
 import { InvoiceOptionSchema } from '../utils/options';
 
 /**
@@ -23,25 +22,6 @@ function formatMoney(cents: number, withColor = true): string {
 function getCategoryName(categoryId: number, categoriesMap: Map<number, string>): string {
   const name = categoriesMap.get(categoryId);
   return name || `Unknown (${categoryId})`;
-}
-
-/**
- * Build category map from config
- */
-function buildCategoryMap(): Map<number, string> {
-  const map = new Map<number, string>();
-  try {
-    const categories = loadCategories();
-    for (const [name, id] of Object.entries(categories.essencial)) {
-      map.set(id as number, name);
-    }
-    for (const [name, id] of Object.entries(categories.estilo_de_vida)) {
-      map.set(id as number, name);
-    }
-  } catch {
-    // Ignore if categories not available
-  }
-  return map;
 }
 
 /**

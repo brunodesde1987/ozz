@@ -4,7 +4,7 @@ import ora from 'ora';
 import Table from 'cli-table3';
 import { api } from '../core/api';
 import { loadCategories } from '../config/loader';
-import type { Category, Account, CreditCard, Invoice } from '../core/schemas';
+import type { Account, CreditCard, Invoice } from '../core/schemas';
 import { formatMoney } from '../utils/format';
 
 /**

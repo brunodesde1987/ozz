@@ -197,4 +197,3 @@ class OrganizzeAPI {
 
 // Singleton export
 export const api = new OrganizzeAPI();
-export { OrganizzeAPI };
