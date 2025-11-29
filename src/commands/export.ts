@@ -90,10 +90,59 @@ async function generateCSV(
   return lines.join('\n');
 }
 
+/**
+ * Parse invoice range/list (e.g., "306-311" or "306,307,308")
+ */
+function parseInvoiceList(input: string): number[] {
+  const invoices: number[] = [];
+
+  // Handle comma-separated list
+  if (input.includes(',')) {
+    const parts = input.split(',').map(p => p.trim());
+    for (const part of parts) {
+      const num = parseInt(part, 10);
+      if (isNaN(num)) {
+        throw new Error(`Invalid invoice ID: ${part}`);
+      }
+      invoices.push(num);
+    }
+  }
+  // Handle range
+  else if (input.includes('-')) {
+    const parts = input.split('-');
+    if (parts.length !== 2) {
+      throw new Error('Invoice range must be in format: start-end');
+    }
+    const start = parseInt(parts[0], 10);
+    const end = parseInt(parts[1], 10);
+    if (isNaN(start) || isNaN(end)) {
+      throw new Error('Invoice range must contain valid numbers');
+    }
+    if (start > end) {
+      throw new Error('Invoice range start must be <= end');
+    }
+    for (let i = start; i <= end; i++) {
+      invoices.push(i);
+    }
+  }
+  // Single invoice
+  else {
+    const num = parseInt(input, 10);
+    if (isNaN(num)) {
+      throw new Error(`Invalid invoice ID: ${input}`);
+    }
+    invoices.push(num);
+  }
+
+  return invoices;
+}
+
 export const exportCommand = new Command('export')
   .description('Export transactions to CSV')
   .argument('<format>', 'Export format: csv')
-  .option('--invoice <cardId/invoiceId>', 'Credit card invoice')
+  .option('--invoice <cardId/invoiceId>', 'Credit card invoice (single, legacy format)')
+  .option('--card <id>', 'Credit card ID (for use with --invoices)')
+  .option('--invoices <range|list>', 'Invoice IDs or range (e.g., 306-311 or 306,307,308)')
   .option('--start <YYYY-MM>', 'Start month')
   .option('--end <YYYY-MM>', 'End month')
   .option('-o, --output <path>', 'Output directory', '.')
@@ -105,15 +154,29 @@ export const exportCommand = new Command('export')
       }
 
       // Validate options
-      const hasInvoice = !!options.invoice;
+      const hasSingleInvoice = !!options.invoice;
+      const hasMultiInvoices = !!options.invoices;
+      const hasCard = !!options.card;
       const hasDateRange = !!options.start || !!options.end;
 
-      if (!hasInvoice && !hasDateRange) {
-        throw new Error('Either --invoice or --start/--end is required');
+      if (hasSingleInvoice && (hasMultiInvoices || hasCard || hasDateRange)) {
+        throw new Error('--invoice cannot be used with --card, --invoices, or --start/--end');
       }
 
-      if (hasInvoice && hasDateRange) {
-        throw new Error('Cannot use both --invoice and --start/--end');
+      if (hasMultiInvoices && !hasCard) {
+        throw new Error('--invoices requires --card');
+      }
+
+      if (hasCard && !hasMultiInvoices) {
+        throw new Error('--card requires --invoices');
+      }
+
+      if (hasDateRange && (hasSingleInvoice || hasMultiInvoices)) {
+        throw new Error('Cannot use invoice options with --start/--end');
+      }
+
+      if (!hasSingleInvoice && !hasMultiInvoices && !hasDateRange) {
+        throw new Error('Either --invoice, (--card --invoices), or --start/--end is required');
       }
 
       if (options.start && !options.end) {
@@ -130,8 +193,8 @@ export const exportCommand = new Command('export')
       let transactions: Transaction[];
       let filename: string;
 
-      if (hasInvoice) {
-        // Fetch invoice
+      if (hasSingleInvoice) {
+        // Legacy: Fetch single invoice
         const result = InvoiceOptionSchema.safeParse(options.invoice);
         if (!result.success) {
           throw new Error('Invalid --invoice format. Use: cardId/invoiceId');
@@ -149,6 +212,42 @@ export const exportCommand = new Command('export')
         console.log();
         console.log(chalk.bold('Export summary:'));
         console.log(`  Source: Invoice ${cardId}/${invoiceId}`);
+        console.log(`  Transactions: ${transactions.length}`);
+        console.log(`  Format: CSV`);
+        console.log();
+
+      } else if (hasMultiInvoices) {
+        // Multi-invoice export
+        const cardId = parseInt(options.card, 10);
+        if (isNaN(cardId)) {
+          throw new Error('Invalid card ID');
+        }
+
+        const invoiceIds = parseInvoiceList(options.invoices);
+        if (invoiceIds.length === 0) {
+          throw new Error('No valid invoice IDs provided');
+        }
+
+        const spinner = ora(`Fetching ${invoiceIds.length} invoice(s)...`).start();
+        const allTransactions: Transaction[] = [];
+
+        for (const invoiceId of invoiceIds) {
+          const invoice = await api.getInvoice(cardId, invoiceId);
+          allTransactions.push(...(invoice.transactions || []));
+        }
+
+        spinner.succeed(`Fetched ${allTransactions.length} transactions from ${invoiceIds.length} invoice(s)`);
+
+        transactions = allTransactions;
+        const rangeStr = invoiceIds.length > 3
+          ? `${invoiceIds[0]}-${invoiceIds[invoiceIds.length - 1]}`
+          : invoiceIds.join(',');
+        filename = `ozz_export_invoices_${rangeStr}.csv`;
+
+        // Summary
+        console.log();
+        console.log(chalk.bold('Export summary:'));
+        console.log(`  Source: Card ${cardId}, Invoices ${rangeStr}`);
         console.log(`  Transactions: ${transactions.length}`);
         console.log(`  Format: CSV`);
         console.log();
