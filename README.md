@@ -50,19 +50,25 @@ ozz find --duplicates --invoice 2171204/310
 
 #### `ozz export`
 Export transactions to CSV.
+
+**CSV columns:**
+```
+date,description,amount,category_name,card,invoice,notes
+```
+
+**--raw flag:**
+- Without --raw: amount is "R$ -128,23"
+- With --raw: amount is -128.23 (decimal, for AI/spreadsheet analysis)
+
 ```bash
 # Single invoice
 ozz export csv --invoice 2171204/310 -o ~/Downloads/
 
-# Multiple invoices (for analysis)
-ozz export csv --card 2171204 --invoices 306-311 -o ~/Downloads/
-ozz export csv --card 2171204 --invoices 306,307,310 -o ~/Downloads/
+# Multiple invoices for analysis
+ozz export csv --card 2171204 --invoices 306-311 --raw -o ~/Downloads/
 
 # Date range
 ozz export csv --start 2025-01 --end 2025-03
-
-# Raw format (decimal amounts for AI/spreadsheet analysis)
-ozz export csv --card 2171204 --invoices 306-311 --raw -o ~/Downloads/
 ```
 
 Options:
