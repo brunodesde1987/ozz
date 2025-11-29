@@ -4,7 +4,7 @@ import ora from 'ora';
 import Table from 'cli-table3';
 import { api } from '../core/api';
 import { processBatch, type ProcessResult } from '../core/processor';
-import type { Transaction } from '../core/schemas';
+import type { Transaction, Invoice } from '../core/schemas';
 import { logger } from '../utils/logger';
 import { formatDuration, formatMoney, formatMonth } from '../utils/format';
 import { InvoiceOptionSchema, UpdateOptionsSchema } from '../utils/options';
@@ -27,7 +27,8 @@ interface UpdateOptions {
 function displayPreExecutionSummary(
   options: UpdateOptions,
   cardName?: string,
-  accountName?: string
+  accountName?: string,
+  invoice?: Invoice
 ): void {
   console.log(); // blank line
 
@@ -39,6 +40,14 @@ function displayPreExecutionSummary(
     const { cardId, invoiceId } = result.data;
     const cardDisplay = cardName ? `${cardName} (${cardId})` : cardId.toString();
     console.log(chalk.blue(`📋 Updating invoice ${invoiceId} for card ${cardDisplay}`));
+
+    // Show invoice month if available
+    if (invoice?.date) {
+      const monthStr = invoice.date.slice(0, 7); // Extract YYYY-MM
+      const monthFormatted = formatMonth(monthStr);
+      const closingDate = invoice.closing_date;
+      console.log(chalk.blue(`   → Invoice: ${monthFormatted} (closing: ${closingDate})`));
+    }
   } else if (options.start && options.end) {
     const startFormatted = formatMonth(options.start);
     const endFormatted = formatMonth(options.end);
@@ -166,22 +175,28 @@ export const updateCommand = new Command('update')
         throw new Error(`Invalid options: ${errors}`);
       }
 
-      // 3. Fetch metadata for display (card name or account name)
+      // 3. Fetch metadata for display (card name, account name, and invoice details)
       let cardName: string | undefined;
       let accountName: string | undefined;
+      let invoiceData: Invoice | undefined;
 
       if (options.invoice) {
         const result = InvoiceOptionSchema.safeParse(options.invoice);
         if (!result.success) {
           throw new Error('Invalid invoice format. Expected: cardId/invoiceId (e.g., 2171204/310)');
         }
-        const { cardId } = result.data;
+        const { cardId, invoiceId } = result.data;
         try {
           const cards = await api.getCreditCards();
           const card = cards.find(c => c.id === cardId);
           cardName = card?.name;
         } catch {
           // Ignore errors fetching card name
+        }
+        try {
+          invoiceData = await api.getInvoice(cardId, invoiceId);
+        } catch {
+          // Ignore errors fetching invoice details
         }
       }
 
@@ -196,7 +211,7 @@ export const updateCommand = new Command('update')
       }
 
       // 4. Display pre-execution summary
-      displayPreExecutionSummary(options, cardName, accountName);
+      displayPreExecutionSummary(options, cardName, accountName, invoiceData);
 
       // 5. Fetch transactions with loading spinner
       const startTime = Date.now();
