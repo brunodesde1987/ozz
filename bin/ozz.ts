@@ -5,6 +5,7 @@ import { updateCommand } from '../src/commands/update';
 import { listCommand } from '../src/commands/list';
 import { findCommand } from '../src/commands/find';
 import { exportCommand } from '../src/commands/export';
+import { configCommand } from '../src/commands/config';
 
 const banner = `
    ██████╗ ███████╗███████╗
@@ -29,13 +30,7 @@ program.addCommand(updateCommand);
 program.addCommand(listCommand);
 program.addCommand(findCommand);
 program.addCommand(exportCommand);
-
-program
-  .command('config <action>')
-  .description('Manage config (validate, show)')
-  .action((action) => {
-    console.log(`Config ${action} - not implemented yet`);
-  });
+program.addCommand(configCommand);
 
 program
   .option('--dry-run', 'Preview only (default for destructive)')
