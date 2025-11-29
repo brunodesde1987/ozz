@@ -31,6 +31,7 @@ export const TransactionSchema = z.object({
   tags: z.array(TagSchema),
   attachments: z.array(z.any()),
   recurrence_id: z.number().nullable(),
+  account_type: z.enum(['CreditCard', 'Account']).optional(),
 });
 
 export const CategorySchema = z.object({
@@ -66,6 +67,11 @@ export const CreditCardSchema = z.object({
   limit_cents: z.number(),
   closing_day: z.number(),
   due_day: z.number(),
+  card_network: z.string().nullable().optional(),
+  kind: z.string().optional(),
+  default: z.boolean().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
 });
 
 export const InvoiceSchema = z.object({
@@ -79,6 +85,7 @@ export const InvoiceSchema = z.object({
   previous_balance_cents: z.number(),
   credit_card_id: z.number(),
   transactions: z.array(TransactionSchema),
+  payments: z.array(z.any()).optional(),
 });
 
 // Export types
