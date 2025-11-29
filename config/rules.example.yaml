@@ -1,0 +1,11 @@
+- pattern: "MERCADO|SUPERMERCADO"
+  category: mercado
+
+- pattern: "UBER.*TRIP|99.*TAXI"
+  category: transporte
+
+- pattern: "NETFLIX|PRIME VIDEO"
+  category: assinaturas_streamings
+
+- pattern: "FARMACIA|DROGARIA"
+  category: saude

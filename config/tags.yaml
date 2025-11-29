@@ -1,0 +1,80 @@
+mercado:
+  - essencial
+  - alimentacao
+
+bares_restaurantes:
+  - estilo-de-vida
+  - alimentacao
+  - restaurante
+  - lazer
+
+assinaturas:
+  - assinatura
+  - servico
+
+transporte:
+  - transporte
+  - mobilidade
+
+saude:
+  - saude
+  - bem-estar
+  - essencial
+
+cuidados_pessoais:
+  - cuidados-pessoais
+  - bem-estar
+
+pets:
+  - pet
+  - nina
+
+roupas:
+  - roupa
+  - vestuario
+
+impostos_taxas:
+  - imposto
+  - taxa
+  - governo
+
+casa:
+  - casa
+  - moradia
+
+educacao:
+  - educacao
+  - aprendizado
+  - essencial
+
+lazer_hobbies:
+  - lazer
+  - entretenimento
+
+viagem:
+  - viagem
+  - turismo
+
+trabalho_pj:
+  - trabalho
+  - pj
+
+familia_malu_essencial:
+  - familia
+  - malu
+  - essencial
+
+familia_malu_bem_estar:
+  - familia
+  - malu
+
+presentes_doacoes:
+  - presente
+  - doacao
+
+compras:
+  - compras
+
+investimento_poupanca:
+  - investimento
+  - poupanca

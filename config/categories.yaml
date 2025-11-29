@@ -1,0 +1,38 @@
+essencial:
+  mercado: 136907873
+  saude: 136907874
+  casa: 136907875
+  impostos_taxas: 136907886
+  educacao: 136907868
+  transporte: 136907888
+  trabalho_pj: 136907890
+  casa_recorrentes: 154849367
+  casa_servicos: 154849423
+  casa_itens: 154849507
+  trabalho_despesas_pj: 154849705
+  familia_malu_essencial: 154850151
+  clinica_afeto: 154850151
+
+estilo_de_vida:
+  bares_restaurantes: 136907864
+  roupas: 136907865
+  lazer_hobbies: 136907869
+  familia_malu_bem_estar: 154772711
+  cuidados_pessoais: 136907881
+  pets: 136907882
+  assinaturas: 136907885
+  viagem: 136907889
+  presentes_doacoes: 136907872
+  compras: 136907884
+  investimento_poupanca: 136907876
+  assinaturas_streamings: 154849958
+  assinaturas_softwares: 154849959
+  cuidados_pessoais_maiara_gym: 154430693
+  cuidados_pessoais_maiara_beauty: 154430693
+  roupas_bruno: 154773697
+  roupas_maiara: 154773698
+  familia_malu_bem_estar_alt: 154772711
+  transporte_lazer: 154849674
+  transporte_manutencao: 154773836
+  alimentacao_maiara: 154773866
+  outros: 136907879
