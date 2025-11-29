@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { program } from 'commander';
 import chalk from 'chalk';
+import { updateCommand } from '../src/commands/update';
 
 const banner = `
    ██████╗ ███████╗███████╗
@@ -20,20 +21,8 @@ program
     console.log(chalk.green(banner));
   });
 
-program
-  .command('update')
-  .description('Categorize and rename transactions')
-  .option('--invoice <cardId/invoiceId>', 'Credit card invoice')
-  .option('--start <YYYY-MM>', 'Start month')
-  .option('--end <YYYY-MM>', 'End month')
-  .option('--account <id>', 'Account ID')
-  .option('--apply', 'Actually apply changes (default: dry-run)')
-  .option('--force', 'Override manual edits')
-  .option('--rename-only', 'Only rename, skip categorization')
-  .option('--tags-only', 'Only apply tags')
-  .action((options) => {
-    console.log('Update command - not implemented yet', options);
-  });
+// Add update command
+program.addCommand(updateCommand);
 
 program
   .command('list <type>')
