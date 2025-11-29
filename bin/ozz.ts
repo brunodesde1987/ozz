@@ -3,6 +3,7 @@ import { program } from 'commander';
 import chalk from 'chalk';
 import { updateCommand } from '../src/commands/update';
 import { listCommand } from '../src/commands/list';
+import { findCommand } from '../src/commands/find';
 
 const banner = `
    ██████╗ ███████╗███████╗
@@ -25,20 +26,7 @@ program
 // Add commands
 program.addCommand(updateCommand);
 program.addCommand(listCommand);
-
-program
-  .command('find')
-  .description('Find transactions')
-  .option('--desc <pattern>', 'Search by description')
-  .option('--id <id>', 'Find by ID')
-  .option('--uncategorized', 'Find uncategorized')
-  .option('--duplicates', 'Find duplicates')
-  .option('--start <YYYY-MM>', 'Start month')
-  .option('--end <YYYY-MM>', 'End month')
-  .option('--invoice <cardId/invoiceId>', 'Credit card invoice')
-  .action((options) => {
-    console.log('Find command - not implemented yet', options);
-  });
+program.addCommand(findCommand);
 
 program
   .command('export <format>')
