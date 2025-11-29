@@ -49,7 +49,8 @@ function formatMonth(date: string, raw: boolean): string {
 async function generateCSV(
   transactions: Transaction[],
   categoryMap: Map<number, string>,
-  invoiceMonths?: Map<number, string>
+  invoiceMonths?: Map<number, string>,
+  raw?: boolean
 ): Promise<string> {
   // Fetch accounts and cards for name lookup
   const spinner = ora('Fetching accounts and cards...').start();
@@ -74,7 +75,7 @@ async function generateCSV(
   const lines: string[] = [];
 
   // Header
-  lines.push('date,description,amount,category_name,card,month,notes');
+  lines.push('date,description,amount,category_name,card,invoice,notes');
 
   // Rows
   for (const tx of transactions) {
@@ -86,10 +87,19 @@ async function generateCSV(
       card = cardMap.get(tx.credit_card_id) || `Card #${tx.credit_card_id}`;
     }
 
-    // Get month from invoice map or derive from transaction date
-    let month = '';
-    if (invoiceMonths && tx.credit_card_invoice_id) {
-      month = invoiceMonths.get(tx.credit_card_invoice_id) || '';
+    // Format invoice column: ID with month in parens, or just ID in raw mode
+    let invoice = '';
+    if (tx.credit_card_invoice_id) {
+      if (invoiceMonths) {
+        const month = invoiceMonths.get(tx.credit_card_invoice_id);
+        if (month) {
+          invoice = raw ? String(tx.credit_card_invoice_id) : `${tx.credit_card_invoice_id} (${month})`;
+        } else {
+          invoice = String(tx.credit_card_invoice_id);
+        }
+      } else {
+        invoice = String(tx.credit_card_invoice_id);
+      }
     }
 
     const row = [
@@ -98,7 +108,7 @@ async function generateCSV(
       escapeCSV(formatMoney(tx.amount_cents)),
       escapeCSV(categoryName),
       escapeCSV(card),
-      escapeCSV(month),
+      escapeCSV(invoice),
       escapeCSV(tx.notes || ''),
     ];
 
@@ -306,7 +316,7 @@ export const exportCommand = new Command('export')
 
       // Generate CSV
       const invoiceMonths = (options as any).invoiceMonths;
-      const csv = await generateCSV(transactions, categoryMap, invoiceMonths);
+      const csv = await generateCSV(transactions, categoryMap, invoiceMonths, options.raw);
 
       // Write file
       const outputPath = `${options.output}/${filename}`;
