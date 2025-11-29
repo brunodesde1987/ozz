@@ -1,6 +1,7 @@
 import type { Transaction } from './schemas';
 import type { Categories, Rule, Tags } from '../config/loader';
 import { loadAllConfig } from '../config/loader';
+import { buildCategoryMap } from '../utils/format';
 
 export interface ProcessResult {
   transaction: Transaction;
@@ -146,24 +147,26 @@ export function getCategoryId(categoryName: string, categories: Categories): num
   return null;
 }
 
+// Cache the category map
+let categoryMapCache: Map<number, string> | null = null;
+
+async function getCategoryMap(): Promise<Map<number, string>> {
+  if (!categoryMapCache) {
+    categoryMapCache = buildCategoryMap();
+  }
+  return categoryMapCache;
+}
+
 /**
  * Get tags for a category using reverse lookup
  * 1. Find category name from category_id
  * 2. Look up tags for that category name in tags.yaml
  */
-export function getTagsForCategory(categoryId: number | null, categories: Categories, tags: Tags): string[] {
+export async function getTagsForCategory(categoryId: number | null, tags: Tags): Promise<string[]> {
   if (!categoryId) return [];
 
-  // Reverse lookup: find category name from ID
-  let categoryName: string | null = null;
-  for (const [name, id] of Object.entries(categories.essencial)) {
-    if (id === categoryId) { categoryName = name; break; }
-  }
-  if (!categoryName) {
-    for (const [name, id] of Object.entries(categories.estilo_de_vida)) {
-      if (id === categoryId) { categoryName = name; break; }
-    }
-  }
+  const categoryMap = await getCategoryMap();
+  const categoryName = categoryMap.get(categoryId);
 
   if (!categoryName) return [];
   return tags[categoryName] || [];
@@ -235,13 +238,13 @@ export async function processBatch(
     // 4. Handle tags
     if (options.tagsOnly) {
       // For tagsOnly: look up tags from current transaction's category_id
-      const tags = getTagsForCategory(txn.category_id, config.categories, config.tags);
+      const tags = await getTagsForCategory(txn.category_id, config.tags);
       if (tags.length > 0) {
         changes.tags = tags;
       }
     } else if (suggestedCategoryId) {
       // For normal update: add tags based on the new category
-      const tags = getTagsForCategory(suggestedCategoryId, config.categories, config.tags);
+      const tags = await getTagsForCategory(suggestedCategoryId, config.tags);
       if (tags.length > 0) {
         changes.tags = tags;
       }
