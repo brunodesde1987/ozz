@@ -4,18 +4,8 @@ import ora from 'ora';
 import { api } from '../core/api';
 import { loadCategories } from '../config/loader';
 import type { Transaction, Account, CreditCard, Tag } from '../core/schemas';
-
-/**
- * Format money in cents to R$ format for CSV
- */
-function formatMoney(cents: number): string {
-  const reais = cents / 100;
-  const formatted = reais.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return cents < 0 ? `-R$ ${formatted}` : `R$ ${formatted}`;
-}
+import { formatMoney } from '../utils/format';
+import { InvoiceOptionSchema } from '../utils/options';
 
 /**
  * Escape CSV field value
@@ -28,25 +18,6 @@ function escapeCSV(value: string | number | null | undefined): string {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
-}
-
-/**
- * Parse invoice option: cardId/invoiceId
- */
-function parseInvoiceOption(invoiceStr: string): { cardId: number; invoiceId: number } {
-  const parts = invoiceStr.split('/');
-  if (parts.length !== 2) {
-    throw new Error('Invalid --invoice format. Use: cardId/invoiceId');
-  }
-
-  const cardId = parseInt(parts[0]);
-  const invoiceId = parseInt(parts[1]);
-
-  if (isNaN(cardId) || isNaN(invoiceId)) {
-    throw new Error('Card ID and Invoice ID must be numbers');
-  }
-
-  return { cardId, invoiceId };
 }
 
 /**
@@ -179,7 +150,11 @@ export const exportCommand = new Command('export')
 
       if (hasInvoice) {
         // Fetch invoice
-        const { cardId, invoiceId } = parseInvoiceOption(options.invoice);
+        const result = InvoiceOptionSchema.safeParse(options.invoice);
+        if (!result.success) {
+          throw new Error('Invalid --invoice format. Use: cardId/invoiceId');
+        }
+        const { cardId, invoiceId } = result.data;
 
         const spinner = ora(`Fetching invoice ${cardId}/${invoiceId}...`).start();
         const invoice = await api.getInvoice(cardId, invoiceId);

@@ -5,18 +5,7 @@ import Table from 'cli-table3';
 import { api } from '../core/api';
 import { loadCategories } from '../config/loader';
 import type { Category, Account, CreditCard, Invoice } from '../core/schemas';
-
-/**
- * Format money in cents to R$ format
- */
-function formatMoney(cents: number): string {
-  const reais = Math.abs(cents / 100);
-  const formatted = reais.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return cents < 0 ? `-R$ ${formatted}` : `R$ ${formatted}`;
-}
+import { formatMoney } from '../utils/format';
 
 /**
  * List categories from local config

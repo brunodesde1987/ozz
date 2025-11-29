@@ -7,6 +7,7 @@ import {
   InvoiceSchema,
 } from './schemas';
 import type { Transaction, Category, Account, CreditCard, Invoice, Tag } from './schemas';
+import { getMonthRanges } from '../utils/date';
 
 const BASE_URL = 'https://api.organizze.com.br/rest/v2';
 
@@ -30,7 +31,7 @@ class OrganizzeAPI {
     const now = Date.now();
     const elapsed = now - this.lastRequest;
     if (elapsed < this.minDelay) {
-      await new Promise(r => setTimeout(r, this.minDelay - elapsed));
+      await Bun.sleep(this.minDelay - elapsed);
     }
     this.lastRequest = Date.now();
   }
@@ -51,7 +52,7 @@ class OrganizzeAPI {
     if (res.status === 429) {
       // Rate limited - exponential backoff
       const retryAfter = parseInt(res.headers.get('Retry-After') || '5');
-      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      await Bun.sleep(retryAfter * 1000);
       return this.fetch(path, schema, options);
     }
 
@@ -90,7 +91,11 @@ class OrganizzeAPI {
    * Use this to avoid 500-transaction limit for large date ranges
    */
   async getTransactionsBatched(start: string, end: string, accountId?: number): Promise<Transaction[]> {
-    const months = this.getMonthRanges(start, end);
+    // Convert YYYY-MM to YYYY-MM-DD if needed
+    const startDate = start.length === 7 ? `${start}-01` : start;
+    const endDate = end.length === 7 ? `${end}-01` : end;
+
+    const months = getMonthRanges(startDate, endDate);
     const results: Transaction[] = [];
 
     for (const { start: s, end: e } of months) {
@@ -186,35 +191,7 @@ class OrganizzeAPI {
    * Helper: Add delay between operations
    */
   async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Helper: Split date range into month ranges
-   * @param start - YYYY-MM format
-   * @param end - YYYY-MM format
-   */
-  private getMonthRanges(start: string, end: string): Array<{ start: string; end: string }> {
-    const ranges: Array<{ start: string; end: string }> = [];
-    const startDate = new Date(start + '-01');
-    const endDate = new Date(end + '-01');
-
-    let current = startDate;
-    while (current <= endDate) {
-      const year = current.getFullYear();
-      const month = current.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-
-      ranges.push({
-        start: firstDay.toISOString().slice(0, 10),
-        end: lastDay.toISOString().slice(0, 10),
-      });
-
-      current = new Date(year, month + 1, 1);
-    }
-
-    return ranges;
+    await Bun.sleep(ms);
   }
 }
 

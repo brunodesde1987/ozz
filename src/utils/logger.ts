@@ -3,8 +3,8 @@ import chalk from 'chalk';
 interface LogEntry {
   timestamp: string;
   command: string;
-  args: Record<string, any>;
-  results?: Record<string, any>;
+  args: Record<string, unknown>;
+  results?: Record<string, unknown>;
   transactions?: Array<{
     id: number;
     action: string;
@@ -16,7 +16,7 @@ interface LogEntry {
 
 class Logger {
   private command: string = '';
-  private args: Record<string, any> = {};
+  private args: Record<string, unknown> = {};
   private logDir: string;
 
   constructor() {
@@ -25,7 +25,7 @@ class Logger {
   }
 
   // Set command context
-  setCommand(command: string, args: Record<string, any>) {
+  setCommand(command: string, args: Record<string, unknown>) {
     this.command = command;
     this.args = args;
   }
@@ -48,13 +48,13 @@ class Logger {
   }
 
   debug(message: string) {
-    if (process.env.DEBUG || (globalThis as any).debugMode) {
+    if (process.env.DEBUG || (globalThis as { debugMode?: boolean }).debugMode) {
       console.log(chalk.gray('⚙'), message);
     }
   }
 
   // Write log file
-  async writeLog(results: Record<string, any>, transactions?: LogEntry['transactions']) {
+  async writeLog(results: Record<string, unknown>, transactions?: LogEntry['transactions']) {
     const timestamp = new Date().toISOString();
     const filename = this.generateFilename();
 

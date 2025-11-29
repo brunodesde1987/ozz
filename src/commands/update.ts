@@ -6,106 +6,37 @@ import { api } from '../core/api';
 import { processBatch, type ProcessResult } from '../core/processor';
 import type { Transaction } from '../core/schemas';
 import { logger } from '../utils/logger';
+import { formatDuration, formatMoney, formatMonth } from '../utils/format';
+import { InvoiceOptionSchema, UpdateOptionsSchema } from '../utils/options';
 
-/**
- * Format duration in ms to human-readable string
- * e.g., 1234ms -> "1s", 65000ms -> "1m05s"
- */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${minutes}m${secs.toString().padStart(2, '0')}s`;
-}
-
-/**
- * Format money in cents to R$ format
- * e.g., 4590 -> "R$ 45,90"
- */
-function formatMoney(cents: number): string {
-  const reais = Math.abs(cents / 100);
-  const formatted = reais.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return cents < 0 ? `-R$ ${formatted}` : `R$ ${formatted}`;
-}
-
-/**
- * Format month from YYYY-MM to "Jan 2025"
- */
-function formatMonth(yearMonth: string): string {
-  const [year, month] = yearMonth.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-  const monthName = date.toLocaleString('en-US', { month: 'short' });
-  return `${monthName} ${year}`;
-}
-
-/**
- * Parse invoice option: "cardId/invoiceId" -> {cardId, invoiceId}
- */
-function parseInvoiceOption(invoice: string): { cardId: number; invoiceId: number } {
-  const parts = invoice.split('/');
-  if (parts.length !== 2) {
-    throw new Error('Invalid invoice format. Expected: cardId/invoiceId (e.g., 2171204/310)');
-  }
-
-  const cardId = parseInt(parts[0]);
-  const invoiceId = parseInt(parts[1]);
-
-  if (isNaN(cardId) || isNaN(invoiceId)) {
-    throw new Error('Invalid invoice format. Card ID and Invoice ID must be numbers');
-  }
-
-  return { cardId, invoiceId };
-}
-
-/**
- * Validate options
- */
-function validateOptions(options: any): void {
-  const hasInvoice = Boolean(options.invoice);
-  const hasStart = Boolean(options.start);
-  const hasEnd = Boolean(options.end);
-
-  // --invoice OR --start/--end (mutually exclusive)
-  if (hasInvoice && (hasStart || hasEnd)) {
-    throw new Error('Cannot use --invoice with --start/--end. Choose one approach.');
-  }
-
-  // --start requires --end
-  if (hasStart && !hasEnd) {
-    throw new Error('--start requires --end');
-  }
-
-  if (hasEnd && !hasStart) {
-    throw new Error('--end requires --start');
-  }
-
-  // --account only valid with --start/--end
-  if (options.account && !hasStart) {
-    throw new Error('--account only valid with --start/--end');
-  }
-
-  // Must have either invoice or date range
-  if (!hasInvoice && !hasStart) {
-    throw new Error('Must specify either --invoice or --start/--end');
-  }
+interface UpdateOptions {
+  invoice?: string;
+  start?: string;
+  end?: string;
+  account?: string;
+  apply?: boolean;
+  force?: boolean;
+  renameOnly?: boolean;
+  tagsOnly?: boolean;
+  debug?: boolean;
 }
 
 /**
  * Display pre-execution summary
  */
 function displayPreExecutionSummary(
-  options: any,
+  options: UpdateOptions,
   cardName?: string,
   accountName?: string
 ): void {
   console.log(); // blank line
 
   if (options.invoice) {
-    const { cardId, invoiceId } = parseInvoiceOption(options.invoice);
+    const result = InvoiceOptionSchema.safeParse(options.invoice);
+    if (!result.success) {
+      throw new Error('Invalid invoice format. Expected: cardId/invoiceId (e.g., 2171204/310)');
+    }
+    const { cardId, invoiceId } = result.data;
     const cardDisplay = cardName ? `${cardName} (${cardId})` : cardId.toString();
     console.log(chalk.blue(`📋 Updating invoice ${invoiceId} for card ${cardDisplay}`));
   } else if (options.start && options.end) {
@@ -229,14 +160,22 @@ export const updateCommand = new Command('update')
       logger.setCommand('update', options);
 
       // 2. Validate options
-      validateOptions(options);
+      const validationResult = UpdateOptionsSchema.safeParse(options);
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(e => e.message).join(', ');
+        throw new Error(`Invalid options: ${errors}`);
+      }
 
       // 3. Fetch metadata for display (card name or account name)
       let cardName: string | undefined;
       let accountName: string | undefined;
 
       if (options.invoice) {
-        const { cardId } = parseInvoiceOption(options.invoice);
+        const result = InvoiceOptionSchema.safeParse(options.invoice);
+        if (!result.success) {
+          throw new Error('Invalid invoice format. Expected: cardId/invoiceId (e.g., 2171204/310)');
+        }
+        const { cardId } = result.data;
         try {
           const cards = await api.getCreditCards();
           const card = cards.find(c => c.id === cardId);
@@ -273,7 +212,11 @@ export const updateCommand = new Command('update')
 
       try {
         if (options.invoice) {
-          const { cardId, invoiceId } = parseInvoiceOption(options.invoice);
+          const result = InvoiceOptionSchema.safeParse(options.invoice);
+          if (!result.success) {
+            throw new Error('Invalid invoice format. Expected: cardId/invoiceId (e.g., 2171204/310)');
+          }
+          const { cardId, invoiceId } = result.data;
           const invoice = await api.getInvoice(cardId, invoiceId);
           transactions = invoice.transactions || [];
         } else if (options.start && options.end) {
@@ -296,7 +239,6 @@ export const updateCommand = new Command('update')
 
       // 6. Process transactions
       const processingSpinner = ora('Processing transactions...').start();
-      const processStartTime = Date.now();
 
       const results = await processBatch(transactions, {
         apply: options.apply || false,

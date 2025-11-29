@@ -5,27 +5,16 @@ import Table from 'cli-table3';
 import { api } from '../core/api';
 import { loadCategories } from '../config/loader';
 import type { Transaction, Category } from '../core/schemas';
+import { formatMoney as formatMoneyUtil, truncate } from '../utils/format';
+import { InvoiceOptionSchema } from '../utils/options';
 
 /**
  * Format money in cents to R$ format with color
  */
 function formatMoney(cents: number, withColor = true): string {
-  const reais = Math.abs(cents / 100);
-  const formatted = reais.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  const money = cents < 0 ? `-R$ ${formatted}` : `R$ ${formatted}`;
-
+  const money = formatMoneyUtil(cents);
   if (!withColor) return money;
   return cents < 0 ? chalk.red(money) : chalk.green(money);
-}
-
-/**
- * Truncate long strings
- */
-function truncate(str: string, maxLen: number): string {
-  return str.length > maxLen ? str.slice(0, maxLen - 3) + '...' : str;
 }
 
 /**
@@ -300,17 +289,11 @@ export const findCommand = new Command('find')
       let transactions: Transaction[] = [];
 
       if (hasInvoice) {
-        const parts = options.invoice.split('/');
-        if (parts.length !== 2) {
+        const result = InvoiceOptionSchema.safeParse(options.invoice);
+        if (!result.success) {
           throw new Error('Invoice format must be: cardId/invoiceId');
         }
-
-        const cardId = parseInt(parts[0]);
-        const invoiceId = parseInt(parts[1]);
-
-        if (isNaN(cardId) || isNaN(invoiceId)) {
-          throw new Error('Card ID and Invoice ID must be numbers');
-        }
+        const { cardId, invoiceId } = result.data;
 
         const spinner = ora(`Fetching invoice ${options.invoice}...`).start();
         const invoice = await api.getInvoice(cardId, invoiceId);
