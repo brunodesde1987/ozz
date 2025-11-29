@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { updateCommand } from '../src/commands/update';
 import { listCommand } from '../src/commands/list';
 import { findCommand } from '../src/commands/find';
+import { exportCommand } from '../src/commands/export';
 
 const banner = `
    ██████╗ ███████╗███████╗
@@ -27,17 +28,7 @@ program
 program.addCommand(updateCommand);
 program.addCommand(listCommand);
 program.addCommand(findCommand);
-
-program
-  .command('export <format>')
-  .description('Export transactions (csv)')
-  .option('--invoice <cardId/invoiceId>', 'Credit card invoice')
-  .option('--start <YYYY-MM>', 'Start month')
-  .option('--end <YYYY-MM>', 'End month')
-  .option('-o, --output <path>', 'Output directory')
-  .action((format, options) => {
-    console.log(`Export ${format} - not implemented yet`, options);
-  });
+program.addCommand(exportCommand);
 
 program
   .command('config <action>')
