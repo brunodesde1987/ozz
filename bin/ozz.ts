@@ -2,6 +2,7 @@
 import { program } from 'commander';
 import chalk from 'chalk';
 import { updateCommand } from '../src/commands/update';
+import { listCommand } from '../src/commands/list';
 
 const banner = `
    ██████╗ ███████╗███████╗
@@ -21,16 +22,9 @@ program
     console.log(chalk.green(banner));
   });
 
-// Add update command
+// Add commands
 program.addCommand(updateCommand);
-
-program
-  .command('list <type>')
-  .description('List categories, accounts, cards, or invoices')
-  .option('--card <id>', 'Card ID (for invoices)')
-  .action((type, options) => {
-    console.log(`List ${type} - not implemented yet`, options);
-  });
+program.addCommand(listCommand);
 
 program
   .command('find')

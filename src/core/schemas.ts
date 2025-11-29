@@ -51,12 +51,12 @@ export const CategorySchema = z.object({
 export const AccountSchema = z.object({
   id: z.number(),
   name: z.string(),
-  description: z.string(),
+  description: z.string().nullable(),
   archived: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
   default: z.boolean(),
-  type: z.enum(['checking', 'savings', 'other']),
+  type: z.enum(['checking', 'savings', 'other']).optional(),
 });
 
 export const CreditCardSchema = z.object({
@@ -84,7 +84,7 @@ export const InvoiceSchema = z.object({
   balance_cents: z.number(),
   previous_balance_cents: z.number(),
   credit_card_id: z.number(),
-  transactions: z.array(TransactionSchema),
+  transactions: z.array(TransactionSchema).optional(),
   payments: z.array(z.any()).optional(),
 });
 
