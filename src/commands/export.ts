@@ -105,7 +105,7 @@ async function generateCSV(
     const row = [
       tx.date,
       escapeCSV(tx.description),
-      escapeCSV(formatMoney(tx.amount_cents)),
+      raw ? (tx.amount_cents / 100).toFixed(2) : escapeCSV(formatMoney(tx.amount_cents)),
       escapeCSV(categoryName),
       escapeCSV(card),
       escapeCSV(invoice),
