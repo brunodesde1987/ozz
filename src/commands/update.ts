@@ -5,6 +5,7 @@ import Table from 'cli-table3';
 import { api } from '../core/api';
 import { processBatch, type ProcessResult } from '../core/processor';
 import type { Transaction } from '../core/schemas';
+import { logger } from '../utils/logger';
 
 /**
  * Format duration in ms to human-readable string
@@ -221,12 +222,16 @@ export const updateCommand = new Command('update')
   .option('--force', 'Override manual edits')
   .option('--rename-only', 'Only rename, skip categorization')
   .option('--tags-only', 'Only apply tags')
+  .option('--debug', 'Enable debug output')
   .action(async (options) => {
     try {
-      // 1. Validate options
+      // 1. Set logger command context
+      logger.setCommand('update', options);
+
+      // 2. Validate options
       validateOptions(options);
 
-      // 2. Fetch metadata for display (card name or account name)
+      // 3. Fetch metadata for display (card name or account name)
       let cardName: string | undefined;
       let accountName: string | undefined;
 
@@ -251,10 +256,10 @@ export const updateCommand = new Command('update')
         }
       }
 
-      // 3. Display pre-execution summary
+      // 4. Display pre-execution summary
       displayPreExecutionSummary(options, cardName, accountName);
 
-      // 4. Fetch transactions with loading spinner
+      // 5. Fetch transactions with loading spinner
       const startTime = Date.now();
       const spinner = ora('Fetching transactions...').start();
 
@@ -270,7 +275,7 @@ export const updateCommand = new Command('update')
         if (options.invoice) {
           const { cardId, invoiceId } = parseInvoiceOption(options.invoice);
           const invoice = await api.getInvoice(cardId, invoiceId);
-          transactions = invoice.transactions;
+          transactions = invoice.transactions || [];
         } else if (options.start && options.end) {
           const startDate = `${options.start}-01`;
           const endDate = `${options.end}-01`;
@@ -289,7 +294,7 @@ export const updateCommand = new Command('update')
         throw error;
       }
 
-      // 5. Process transactions
+      // 6. Process transactions
       const processingSpinner = ora('Processing transactions...').start();
       const processStartTime = Date.now();
 
@@ -302,7 +307,13 @@ export const updateCommand = new Command('update')
 
       processingSpinner.succeed(`Processed ${results.length} transactions`);
 
-      // 6. Apply changes if --apply is set
+      // Debug: show results table
+      if (options.debug) {
+        logger.debug('Displaying results table');
+        displayResultsTable(results);
+      }
+
+      // 7. Apply changes if --apply is set
       if (options.apply) {
         const applySpinner = ora('Applying changes...').start();
         let applied = 0;
@@ -312,6 +323,7 @@ export const updateCommand = new Command('update')
             try {
               await api.updateTransaction(result.transaction.id, result.changes);
               applied++;
+              logger.debug(`Updated transaction ${result.transaction.id}`);
             } catch (error) {
               console.error(
                 chalk.red(`Failed to update transaction ${result.transaction.id}: ${error}`)
@@ -323,9 +335,37 @@ export const updateCommand = new Command('update')
         applySpinner.succeed(`Applied ${applied} changes`);
       }
 
-      // 7. Display post-execution summary
+      // 8. Display post-execution summary
       const totalDuration = Date.now() - startTime;
       displayPostExecutionSummary(results, totalDuration, !options.apply);
+
+      // 9. Write log file
+      const categorized = results.filter(r => r.action === 'update' && r.changes?.category_id).length;
+      const renamed = results.filter(r => r.changes?.description).length;
+      const conflicts = results.filter(r => r.action === 'conflict').length;
+      const skipped = results.filter(r => r.action === 'skip').length;
+
+      const logResults = {
+        total: results.length,
+        categorized,
+        renamed,
+        conflicts,
+        skipped,
+        durationMs: totalDuration,
+        isDryRun: !options.apply,
+      };
+
+      const transactionDetails = results
+        .filter(r => r.action === 'update' || r.action === 'rename' || r.action === 'conflict')
+        .map(r => ({
+          id: r.transaction.id,
+          action: r.action,
+          old_category: r.transaction.category_id,
+          new_category: r.changes?.category_id?.toString(),
+        }));
+
+      const logPath = await logger.writeLog(logResults, transactionDetails);
+      logger.debug(`Log written to ${logPath}`);
 
     } catch (error) {
       if (error instanceof Error) {
