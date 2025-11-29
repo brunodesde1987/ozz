@@ -1,5 +1,5 @@
 import type { Transaction } from './schemas';
-import type { Categories, Rule } from '../config/loader';
+import type { Categories, Rule, Tags } from '../config/loader';
 import { loadAllConfig } from '../config/loader';
 
 export interface ProcessResult {
@@ -9,6 +9,7 @@ export interface ProcessResult {
     category_id?: number;
     description?: string;
     notes?: string;
+    tags?: string[];
   };
   reason?: string;
 }
@@ -146,6 +147,29 @@ export function getCategoryId(categoryName: string, categories: Categories): num
 }
 
 /**
+ * Get tags for a category using reverse lookup
+ * 1. Find category name from category_id
+ * 2. Look up tags for that category name in tags.yaml
+ */
+export function getTagsForCategory(categoryId: number | null, categories: Categories, tags: Tags): string[] {
+  if (!categoryId) return [];
+
+  // Reverse lookup: find category name from ID
+  let categoryName: string | null = null;
+  for (const [name, id] of Object.entries(categories.essencial)) {
+    if (id === categoryId) { categoryName = name; break; }
+  }
+  if (!categoryName) {
+    for (const [name, id] of Object.entries(categories.estilo_de_vida)) {
+      if (id === categoryId) { categoryName = name; break; }
+    }
+  }
+
+  if (!categoryName) return [];
+  return tags[categoryName] || [];
+}
+
+/**
  * Process a batch of transactions
  */
 export async function processBatch(
@@ -205,6 +229,21 @@ export async function processBatch(
       const newDescription = matchRename(txn.description, config.rename);
       if (newDescription && newDescription !== txn.description) {
         changes.description = newDescription;
+      }
+    }
+
+    // 4. Handle tags
+    if (options.tagsOnly) {
+      // For tagsOnly: look up tags from current transaction's category_id
+      const tags = getTagsForCategory(txn.category_id, config.categories, config.tags);
+      if (tags.length > 0) {
+        changes.tags = tags;
+      }
+    } else if (suggestedCategoryId) {
+      // For normal update: add tags based on the new category
+      const tags = getTagsForCategory(suggestedCategoryId, config.categories, config.tags);
+      if (tags.length > 0) {
+        changes.tags = tags;
       }
     }
 

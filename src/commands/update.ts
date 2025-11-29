@@ -278,7 +278,16 @@ export const updateCommand = new Command('update')
         for (const result of results) {
           if (result.changes && (result.action === 'update' || result.action === 'rename')) {
             try {
-              await api.updateTransaction(result.transaction.id, result.changes);
+              // Format tags for API if present
+              const updateData: any = {};
+              if (result.changes.category_id) updateData.category_id = result.changes.category_id;
+              if (result.changes.description) updateData.description = result.changes.description;
+              if (result.changes.notes) updateData.notes = result.changes.notes;
+              if (result.changes.tags) {
+                updateData.tags = result.changes.tags.map(t => ({ name: t }));
+              }
+
+              await api.updateTransaction(result.transaction.id, updateData);
               applied++;
               logger.debug(`Updated transaction ${result.transaction.id}`);
             } catch (error) {
