@@ -49,11 +49,28 @@ ozz find --duplicates --invoice 2171204/310
 ```
 
 #### `ozz export`
-Export to CSV.
+Export transactions to CSV.
 ```bash
+# Single invoice
 ozz export csv --invoice 2171204/310 -o ~/Downloads/
+
+# Multiple invoices (for analysis)
+ozz export csv --card 2171204 --invoices 306-311 -o ~/Downloads/
+ozz export csv --card 2171204 --invoices 306,307,310 -o ~/Downloads/
+
+# Date range
 ozz export csv --start 2025-01 --end 2025-03
+
+# Raw format (decimal amounts for AI/spreadsheet analysis)
+ozz export csv --card 2171204 --invoices 306-311 --raw -o ~/Downloads/
 ```
+
+Options:
+- `--invoice <cardId/invoiceId>`: Single invoice export
+- `--card <id>`: Card ID (for multi-invoice)
+- `--invoices <range>`: Invoice range (306-311) or list (306,307,308)
+- `--raw`: Export amounts as decimals instead of formatted currency
+- `-o, --output <path>`: Output directory
 
 #### `ozz config`
 Manage configuration.
