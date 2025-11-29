@@ -1,20 +1,8 @@
 import { z } from "zod";
-import { parse } from "yaml";
-import { readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-// Derive config directory from this file's location
-// Use import.meta.dir for Bun, fallback to calculating from __dirname for Node
-let CONFIG_DIR: string;
-if (typeof (import.meta as any).dir !== "undefined") {
-  // Bun: import.meta.dir is the directory of the current file
-  CONFIG_DIR = join((import.meta as any).dir, "..", "..", "config");
-} else {
-  // Node.js: import.meta.url is the file path
-  const loaderDir = dirname(fileURLToPath(import.meta.url));
-  CONFIG_DIR = join(loaderDir, "..", "..", "config");
-}
+import categoriesYaml from "../../config/categories.yaml";
+import rulesYaml from "../../config/rules.yaml";
+import renameYaml from "../../config/rename.yaml";
+import tagsYaml from "../../config/tags.yaml";
 
 // Zod schemas
 const CategoryGroupSchema = z.record(z.string(), z.number());
@@ -58,18 +46,10 @@ export interface AllConfig {
   pix: Pix;
 }
 
-// Helper to load and parse YAML
-function loadYaml<T>(filename: string, schema: z.ZodType<T>): T {
-  const filepath = join(CONFIG_DIR, filename);
-
-  if (!existsSync(filepath)) {
-    throw new Error(`Config file not found: ${filepath}`);
-  }
-
+// Helper to validate and format errors
+function parseWithValidation<T>(data: unknown, schema: z.ZodType<T>, filename: string): T {
   try {
-    const content = readFileSync(filepath, "utf-8");
-    const parsed = parse(content);
-    return schema.parse(parsed);
+    return schema.parse(data);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const issues = error.issues
@@ -77,83 +57,75 @@ function loadYaml<T>(filename: string, schema: z.ZodType<T>): T {
         .join("\n");
       throw new Error(`Validation failed for ${filename}:\n${issues}`);
     }
-    throw new Error(`Failed to load ${filename}: ${error}`);
+    throw new Error(`Failed to parse ${filename}: ${error}`);
   }
 }
 
-// Helper to load optional YAML files
-function loadOptionalYaml<T>(filename: string, schema: z.ZodType<T>, defaultValue: T): T {
-  const filepath = join(CONFIG_DIR, filename);
-
-  if (!existsSync(filepath)) {
-    return defaultValue;
-  }
-
+// Helper to load optional YAML files with try/catch
+async function loadPixAsync(): Promise<Pix> {
   try {
-    const content = readFileSync(filepath, "utf-8");
-    const parsed = parse(content);
-    return schema.parse(parsed);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const issues = error.issues
-        .map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`)
-        .join("\n");
-      throw new Error(`Validation failed for ${filename}:\n${issues}`);
-    }
-    throw new Error(`Failed to load ${filename}: ${error}`);
+    const pix = await import("../../config/pix.yaml");
+    return parseWithValidation(pix.default, PixSchema, "pix.yaml");
+  } catch {
+    return {};
   }
 }
 
 // Individual loaders
 export function loadCategories(): Categories {
-  return loadYaml("categories.yaml", CategoriesSchema);
+  return parseWithValidation(categoriesYaml, CategoriesSchema, "categories.yaml");
 }
 
 export function loadRules(): Rules {
-  return loadYaml("rules.yaml", RulesSchema);
+  return parseWithValidation(rulesYaml, RulesSchema, "rules.yaml");
 }
 
 export function loadRename(): Rename {
-  return loadYaml("rename.yaml", RenameSchema);
+  return parseWithValidation(renameYaml, RenameSchema, "rename.yaml");
 }
 
 export function loadTags(): Tags {
-  return loadYaml("tags.yaml", TagsSchema);
+  return parseWithValidation(tagsYaml, TagsSchema, "tags.yaml");
 }
 
-export function loadPix(): Pix {
-  return loadOptionalYaml("pix.yaml", PixSchema, {});
+export async function loadPix(): Promise<Pix> {
+  return loadPixAsync();
 }
 
 // Load all configs
-export function loadAllConfig(): AllConfig {
+export async function loadAllConfig(): Promise<AllConfig> {
   return {
     categories: loadCategories(),
     rules: loadRules(),
     rename: loadRename(),
     tags: loadTags(),
-    pix: loadPix(),
+    pix: await loadPix(),
   };
 }
 
 // Validate all configs without returning data
-export function validateConfig(): boolean {
+export async function validateConfig(): Promise<boolean> {
   const errors: string[] = [];
 
-  const configs = [
+  const syncConfigs = [
     { name: "categories.yaml", loader: loadCategories },
     { name: "rules.yaml", loader: loadRules },
     { name: "rename.yaml", loader: loadRename },
     { name: "tags.yaml", loader: loadTags },
-    { name: "pix.yaml", loader: loadPix },
   ];
 
-  for (const config of configs) {
+  for (const config of syncConfigs) {
     try {
       config.loader();
     } catch (error) {
       errors.push(`${config.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  try {
+    await loadPix();
+  } catch (error) {
+    errors.push(`pix.yaml: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   if (errors.length > 0) {
