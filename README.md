@@ -24,7 +24,7 @@ bun link
 Categorize and rename transactions.
 ```bash
 ozz update --invoice 2171204/310              # credit card invoice
-ozz update --start 2025-01 --end 2025-03      # date range
+ozz update --start 2025-01 --end 2025-03      # bank transactions (date range)
 ozz update --invoice 2171204/310 --apply      # actually apply changes
 ozz update --invoice 2171204/310 --force      # override manual edits
 ozz update --invoice 2171204/310 --rename-only

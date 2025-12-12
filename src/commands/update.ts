@@ -6,7 +6,7 @@ import { api } from '../core/api';
 import { processBatch, type ProcessResult } from '../core/processor';
 import type { Transaction, Invoice } from '../core/schemas';
 import { logger } from '../utils/logger';
-import { formatDuration, formatMoney, formatMonth } from '../utils/format';
+import { formatDuration, formatMoney, formatMonth, buildCategoryMap } from '../utils/format';
 import { InvoiceOptionSchema, UpdateOptionsSchema } from '../utils/options';
 
 interface UpdateOptions {
@@ -224,6 +224,8 @@ export const updateCommand = new Command('update')
       }, 1000);
 
       let transactions: Transaction[] = [];
+      let parsedCardId: number | undefined;
+      let parsedInvoiceId: number | undefined;
 
       try {
         if (options.invoice) {
@@ -232,6 +234,8 @@ export const updateCommand = new Command('update')
             throw new Error('Invalid invoice format. Expected: cardId/invoiceId (e.g., 2171204/310)');
           }
           const { cardId, invoiceId } = result.data;
+          parsedCardId = cardId;
+          parsedInvoiceId = invoiceId;
           const invoice = await api.getInvoice(cardId, invoiceId);
           transactions = invoice.transactions || [];
         } else if (options.start && options.end) {
@@ -240,7 +244,9 @@ export const updateCommand = new Command('update')
           const accountId = options.account ? parseInt(options.account) : undefined;
 
           // Use batched fetching for date ranges to avoid 500-transaction limit
-          transactions = await api.getTransactionsBatched(startDate, endDate, accountId);
+          const allTransactions = await api.getTransactionsBatched(startDate, endDate, accountId);
+          // Exclude credit card transactions (use --invoice for those)
+          transactions = allTransactions.filter(t => t.credit_card_id === null);
         }
 
         clearInterval(timer);
@@ -260,6 +266,8 @@ export const updateCommand = new Command('update')
         force: options.force || false,
         renameOnly: options.renameOnly || false,
         tagsOnly: options.tagsOnly || false,
+        cardId: parsedCardId,
+        invoiceId: parsedInvoiceId,
       });
 
       processingSpinner.succeed(`Processed ${results.length} transactions`);
@@ -321,16 +329,29 @@ export const updateCommand = new Command('update')
         isDryRun: !options.apply,
       };
 
+      const categoryMap = buildCategoryMap();
       const transactionDetails = results
         .filter(r => r.action === 'update' || r.action === 'rename' || r.action === 'conflict')
         .map(r => ({
           id: r.transaction.id,
+          description: r.transaction.description,
           action: r.action,
-          old_category: r.transaction.category_id,
-          new_category: r.changes?.category_id?.toString(),
+          old_category: categoryMap.get(r.transaction.category_id) || r.transaction.category_id,
+          new_category: r.changes?.category_id
+            ? categoryMap.get(r.changes.category_id) || r.changes.category_id
+            : undefined,
         }));
 
-      const logPath = await logger.writeLog(logResults, transactionDetails);
+      const skippedDetails = results
+        .filter(r => r.action === 'skip')
+        .map(r => ({
+          id: r.transaction.id,
+          description: r.transaction.description,
+          reason: r.reason,
+          category: categoryMap.get(r.transaction.category_id) || r.transaction.category_id,
+        }));
+
+      const logPath = await logger.writeLog(logResults, transactionDetails, skippedDetails);
       logger.debug(`Log written to ${logPath}`);
 
     } catch (error) {

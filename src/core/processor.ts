@@ -1,7 +1,8 @@
-import type { Transaction } from './schemas';
+import type { Transaction, Invoice } from './schemas';
 import type { Categories, Rule, Tags } from '../config/loader';
 import { loadAllConfig } from '../config/loader';
 import { buildCategoryMap } from '../utils/format';
+import { api } from './api';
 
 export interface ProcessResult {
   transaction: Transaction;
@@ -96,6 +97,117 @@ export async function resolveInstallment(
   return previousInstallment?.category_id ?? null;
 }
 
+// Cache for invoice data during batch processing
+let invoiceCache: Map<number, Invoice[]> | null = null;
+
+/**
+ * Get cached invoices for a card, fetching if needed
+ * Only fetches last 12 invoices (covers max installment period)
+ */
+async function getCachedInvoices(cardId: number, currentInvoiceId: number): Promise<Invoice[]> {
+  if (!invoiceCache) {
+    invoiceCache = new Map();
+  }
+
+  if (!invoiceCache.has(cardId)) {
+    // Fetch invoice list (without transactions)
+    const invoiceList = await api.getInvoices(cardId);
+
+    // Sort by date descending, find current invoice index
+    const sorted = invoiceList.sort((a, b) => b.date.localeCompare(a.date));
+    const currentIdx = sorted.findIndex(inv => inv.id === currentInvoiceId);
+
+    // Get up to 12 invoices starting from current (inclusive)
+    const relevantInvoices = currentIdx >= 0
+      ? sorted.slice(currentIdx, currentIdx + 12)
+      : sorted.slice(0, 12);
+
+    // Fetch full invoice data with transactions
+    const fullInvoices: Invoice[] = [];
+    for (const inv of relevantInvoices) {
+      const full = await api.getInvoice(cardId, inv.id);
+      fullInvoices.push(full);
+    }
+
+    invoiceCache.set(cardId, fullInvoices);
+  }
+
+  return invoiceCache.get(cardId)!;
+}
+
+/**
+ * Clear invoice cache (call at start of batch processing)
+ */
+export function clearInvoiceCache(): void {
+  invoiceCache = null;
+}
+
+/**
+ * Find most consistent category across all prior installments
+ * Searches previous invoices for the same purchase
+ */
+export async function findInstallmentCategory(
+  transaction: Transaction,
+  cardId: number,
+  currentInvoiceId: number
+): Promise<number | null> {
+  // Only applies to installment payments (2nd installment onwards)
+  if (transaction.installment <= 1) {
+    return null;
+  }
+
+  // Extract base description (remove "X/Y" suffix)
+  const baseDescription = transaction.description
+    .replace(/\s*\d+\/\d+\s*$/, '')
+    .trim();
+
+  // Get cached invoices
+  const invoices = await getCachedInvoices(cardId, currentInvoiceId);
+
+  // Collect all prior installments of this purchase
+  const priorCategories: number[] = [];
+
+  for (const invoice of invoices) {
+    if (!invoice.transactions) continue;
+
+    for (const txn of invoice.transactions) {
+      // Skip if not same purchase series
+      if (txn.total_installments !== transaction.total_installments) continue;
+      if (txn.installment >= transaction.installment) continue;
+
+      // Check base description match
+      const txnBase = txn.description.replace(/\s*\d+\/\d+\s*$/, '').trim();
+      if (txnBase !== baseDescription) continue;
+
+      // Found a prior installment with a category
+      if (txn.category_id) {
+        priorCategories.push(txn.category_id);
+      }
+    }
+  }
+
+  if (priorCategories.length === 0) {
+    return null;
+  }
+
+  // Return mode (most frequent category)
+  const counts = new Map<number, number>();
+  for (const cat of priorCategories) {
+    counts.set(cat, (counts.get(cat) || 0) + 1);
+  }
+
+  let maxCount = 0;
+  let modeCategory: number | null = null;
+  for (const [cat, count] of counts) {
+    if (count > maxCount) {
+      maxCount = count;
+      modeCategory = cat;
+    }
+  }
+
+  return modeCategory;
+}
+
 /**
  * Smart skip logic - detect manual edits
  */
@@ -182,10 +294,17 @@ export async function processBatch(
     force: boolean;
     renameOnly: boolean;
     tagsOnly: boolean;
+    cardId?: number;
+    invoiceId?: number;
   }
 ): Promise<ProcessResult[]> {
   const config = await loadAllConfig();
   const results: ProcessResult[] = [];
+
+  // Clear invoice cache at start of batch
+  if (options.cardId && options.invoiceId) {
+    clearInvoiceCache();
+  }
 
   for (const txn of transactions) {
     const changes: ProcessResult['changes'] = {};
@@ -195,7 +314,14 @@ export async function processBatch(
     // Skip category logic if renameOnly or tagsOnly
     if (!options.renameOnly && !options.tagsOnly) {
       // 1. Try installment inheritance first
-      const inheritedCategoryId = await resolveInstallment(txn, transactions);
+      let inheritedCategoryId: number | null = null;
+      if (options.cardId && options.invoiceId) {
+        // Cross-invoice lookup
+        inheritedCategoryId = await findInstallmentCategory(txn, options.cardId, options.invoiceId);
+      } else {
+        // Fallback to same-batch lookup
+        inheritedCategoryId = await resolveInstallment(txn, transactions);
+      }
       if (inheritedCategoryId) {
         suggestedCategoryId = inheritedCategoryId;
         categorySource = 'installment';

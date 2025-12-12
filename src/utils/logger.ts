@@ -7,9 +7,16 @@ interface LogEntry {
   results?: Record<string, unknown>;
   transactions?: Array<{
     id: number;
+    description: string;
     action: string;
-    old_category?: number | null;
-    new_category?: string;
+    old_category?: string | number | null;
+    new_category?: string | number;
+  }>;
+  skipped?: Array<{
+    id: number;
+    description: string;
+    reason?: string;
+    category?: string | number | null;
   }>;
   error?: string;
 }
@@ -54,7 +61,7 @@ class Logger {
   }
 
   // Write log file
-  async writeLog(results: Record<string, unknown>, transactions?: LogEntry['transactions']) {
+  async writeLog(results: Record<string, unknown>, transactions?: LogEntry['transactions'], skipped?: LogEntry['skipped']) {
     const timestamp = new Date().toISOString();
     const filename = this.generateFilename();
 
@@ -64,6 +71,7 @@ class Logger {
       args: this.args,
       results,
       transactions,
+      skipped,
     };
 
     // Ensure logs dir exists
